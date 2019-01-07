@@ -34,7 +34,7 @@ namespace Waddle
             var semanticModel = compilation.GetSemanticModel(compilation.SyntaxTrees.First());
 
             var diagnostics = semanticModel.GetDiagnostics(cancellationToken: cancellationToken);
-            if (diagnostics.Any())
+            if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
             {
                 // Reject invalid solutions.
                 return;
@@ -50,6 +50,10 @@ namespace Waddle
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             await RebuildContextAsync(_workspace.CurrentSolution, cancellationToken);
+            if (_latestState == null)
+            {
+                throw new Exception("TODO: Cannot start off of invalid solution");
+            }
 
             _workspace.WorkspaceChanged += OnWorkspaceChanged;
 

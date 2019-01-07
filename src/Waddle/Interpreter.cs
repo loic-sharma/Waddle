@@ -125,7 +125,7 @@ namespace Waddle
                     break;
 
                 case SyntaxKind.EqualsExpression:
-                    _stack.Push((int)a == (int)b);
+                    _stack.Push(a == b);
                     break;
 
                 default:
