@@ -26,7 +26,7 @@ namespace Waddle
         {
             await base.Visit(node.Body);
 
-            // Wrap the result type in an async.
+            // If the method is async, wrap the result type in a Task.
             var methodSymbol = _semanticModel.GetDeclaredSymbol(node);
             if (methodSymbol.IsAsync && methodSymbol.ReturnType is INamedTypeSymbol returnTypeSymbol)
             {
