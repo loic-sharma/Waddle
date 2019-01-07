@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Waddle
 {
-    public class Interpreter : CSharpSyntaxWalker
+    public class Interpreter : CSharpSyntaxVisitor<Task>
     {
         private readonly SemanticModel _semanticModel;
         private readonly Stack _stack;
@@ -20,43 +22,65 @@ namespace Waddle
             _context = context;
         }
 
-        public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
+        public override async Task VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            base.Visit(node.Body);
+            await base.Visit(node.Body);
+
+            // Wrap the result type in an async.
+            var methodSymbol = _semanticModel.GetDeclaredSymbol(node);
+            if (methodSymbol.IsAsync && methodSymbol.ReturnType is INamedTypeSymbol returnTypeSymbol)
+            {
+                if (returnTypeSymbol.Arity > 0)
+                {
+                    _stack.Push(Task.FromResult(_stack.Pop()));
+                }
+                else
+                {
+                    _stack.Push(Task.CompletedTask);
+                }
+            }
         }
 
-        public override void VisitIfStatement(IfStatementSyntax node)
+        public override async Task VisitBlock(BlockSyntax node)
         {
-            base.Visit(node.Condition);
+            foreach (var statement in node.Statements)
+            {
+                await Visit(statement);
+            }
+        }
+
+        public override async Task VisitIfStatement(IfStatementSyntax node)
+        {
+            await base.Visit(node.Condition);
 
             if ((bool)_stack.Pop())
             {
-                base.Visit(node.Statement);
+                await base.Visit(node.Statement);
             }
             else
             {
-                base.Visit(node.Else);
+                await base.Visit(node.Else);
             }
         }
 
-        public override void VisitWhileStatement(WhileStatementSyntax node)
+        public override async Task VisitWhileStatement(WhileStatementSyntax node)
         {
             while (true)
             {
-                base.Visit(node.Condition);
+                await base.Visit(node.Condition);
 
                 if (!(bool)_stack.Pop())
                 {
                     return;
                 }
 
-                base.Visit(node.Statement);
+                await base.Visit(node.Statement);
             }
         }
 
-        public override void VisitExpressionStatement(ExpressionStatementSyntax node)
+        public override async Task VisitExpressionStatement(ExpressionStatementSyntax node)
         {
-            base.VisitExpressionStatement(node);
+            await Visit(node.Expression);
 
             // TODO: Pop stack if expression does not consume last stack value
             var expressionType = _semanticModel.GetTypeInfo(node.Expression);
@@ -66,24 +90,56 @@ namespace Waddle
             }
         }
 
-        public override void VisitVariableDeclaration(VariableDeclarationSyntax node)
+        public override Task VisitReturnStatement(ReturnStatementSyntax node)
+        {
+            return Visit(node.Expression);
+        }
+
+        public override async Task VisitVariableDeclaration(VariableDeclarationSyntax node)
         {
             foreach (var variable in node.Variables)
             {
-                base.Visit(variable);
+                await base.Visit(variable);
             }
         }
 
-        public override void VisitVariableDeclarator(VariableDeclaratorSyntax node)
+        public override async Task VisitVariableDeclarator(VariableDeclaratorSyntax node)
         {
-            base.Visit(node.Initializer.Value);
+            await base.Visit(node.Initializer.Value);
 
             _context.SetLocal(node.Identifier.ValueText, _stack.Pop());
         }
 
-        public override void VisitInvocationExpression(InvocationExpressionSyntax node)
+        public override async Task VisitAwaitExpression(AwaitExpressionSyntax node)
         {
-            base.Visit(node.ArgumentList);
+            await Visit(node.Expression);
+
+            var result = _stack.Pop();
+            if (result is Task taskResult)
+            {
+                // If the stack has a result, push it to the stack.
+                var expressionTypeInfo = _semanticModel.GetTypeInfo(node.Expression);
+                if (expressionTypeInfo.Type is INamedTypeSymbol namedExpressionType && namedExpressionType.Arity == 1)
+                {
+                    _stack.Push(await (Task<object>)result);
+                }
+                else
+                {
+                    await taskResult;
+                }
+            }
+            else if (result is YieldAwaitable yieldResult)
+            {
+                await yieldResult;
+            }
+        }
+
+        public override async Task VisitInvocationExpression(InvocationExpressionSyntax node)
+        {
+            foreach (var argument in node.ArgumentList.Arguments)
+            {
+                await Visit(argument.Expression);
+            }
 
             var symbolInfo = _semanticModel.GetSymbolInfo(node);
             var methodSymbol = (IMethodSymbol)symbolInfo.Symbol;
@@ -119,13 +175,13 @@ namespace Waddle
             else
             {
                 // Let the interpreter handle the method call.
-                _context.Call(methodSymbol);
+                await _context.Call(methodSymbol);
             }
         }
 
-        public override void VisitBinaryExpression(BinaryExpressionSyntax node)
+        public override async Task VisitBinaryExpression(BinaryExpressionSyntax node)
         {
-            base.VisitBinaryExpression(node);
+            await base.VisitBinaryExpression(node);
 
             var a = _stack.Pop();
             var b = _stack.Pop();
@@ -145,16 +201,20 @@ namespace Waddle
             }
         }
 
-        public override void VisitLiteralExpression(LiteralExpressionSyntax node)
+        public override Task VisitLiteralExpression(LiteralExpressionSyntax node)
         {
             _stack.Push(node.Token.Value);
+
+            return Task.CompletedTask;
         }
 
-        public override void VisitIdentifierName(IdentifierNameSyntax node)
+        public override Task VisitIdentifierName(IdentifierNameSyntax node)
         {
             // The interpreter syntax walker visits an IndentifierNameSyntax node
             // only if the node represents a local that should be pushed onto the stack.
             _stack.Push(_context.GetLocal(node.Identifier.ValueText));
+
+            return Task.CompletedTask;
         }
     }
 }

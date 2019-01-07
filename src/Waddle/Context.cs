@@ -58,7 +58,7 @@ namespace Waddle
             _workspace.WorkspaceChanged += OnWorkspaceChanged;
 
             var entryPoint = await FindEntryPointSyntaxNodeAsync(cancellationToken);
-            entryPoint.Accept(_latestState.Interpreter);
+            await entryPoint.Accept(_latestState.Interpreter);
         }
 
         public object GetLocal(string name)
@@ -71,7 +71,7 @@ namespace Waddle
             _locals.Last()[name] = value;
         }
 
-        public void Call(IMethodSymbol symbol)
+        public async Task Call(IMethodSymbol symbol)
         {
             // TODO: Use the inputted symbol if the state hasn't been reloaded.
             var state = _latestState;
@@ -104,7 +104,7 @@ namespace Waddle
                 .First()
                 .GetSyntax();
 
-            syntax.Accept(state.Interpreter);
+            await syntax.Accept(state.Interpreter);
 
             // Pop the call frame
             _locals.RemoveAt(_locals.Count - 1);

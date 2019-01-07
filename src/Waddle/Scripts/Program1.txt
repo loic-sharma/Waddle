@@ -7,12 +7,23 @@ namespace Test
     {
         static async Task Test(int a)
         {
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            while (true)
+            {
+                Console.WriteLine(await Test2());
+                await Task.Delay(TimeSpan.FromSeconds(5));
+            }
+        }
+
+        static async Task<int> Test2()
+        {
+            await Task.Yield();
+
+            return 2;
         }
 
         static void Main(string[] args)
         {
-            Test(10);
+            Test(1);
         }
     }
 }
