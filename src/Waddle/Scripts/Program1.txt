@@ -1,0 +1,20 @@
+using System;
+
+namespace Test
+{
+    class Program
+    {
+        static string Test()
+        {
+            return "Hello World";
+        }
+
+        static void Main(string[] args)
+        {
+            while (true)
+            {
+              Console.WriteLine("Value {0}", Test());
+            }
+        }
+    }
+}
