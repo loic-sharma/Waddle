@@ -45,32 +45,7 @@ namespace Waddle
             ModifyWorkspace(workspace, document);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
-            var compilation = (CSharpCompilation)await workspace
-                .CurrentSolution
-                .Projects
-                .Where(p =>
-                {
-                    switch (p.CompilationOptions.OutputKind)
-                    {
-                        case OutputKind.ConsoleApplication:
-                        case OutputKind.WindowsApplication:
-                        case OutputKind.WindowsRuntimeApplication:
-                            return true;
-
-                        default:
-                            return false;
-                    }
-                })
-                .First()
-                .GetCompilationAsync(cancellationToken);
-
-            var entryPoint = (CSharpSyntaxNode)compilation
-                .GetEntryPoint(cancellationToken)
-                .DeclaringSyntaxReferences
-                .First()
-                .GetSyntax();
-
-            entryPoint.Accept(context.LatestInterpreter());
+            await context.StartAsync(cancellationToken);
         }
 
         private static async Task ModifyWorkspace(Workspace workspace, Document document)

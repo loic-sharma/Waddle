@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -7,30 +9,25 @@ namespace Waddle
 {
     public class InterpreterContext
     {
+        private readonly Workspace _workspace;
         private readonly Stack _stack;
+
         private LatestState _latestState;
 
         public InterpreterContext(Workspace workspace)
         {
+            _workspace = workspace;
             _stack = new Stack();
-            BuildSolutionContext(workspace.CurrentSolution);
-
-            workspace.WorkspaceChanged += Workspace_WorkspaceChanged;
         }
 
-        private void Workspace_WorkspaceChanged(object sender, WorkspaceChangeEventArgs e)
-        {
-            BuildSolutionContext(e.NewSolution);
-        }
-
-        private void BuildSolutionContext(Solution solution)
+        private async Task BuildSolutionContextAsync(Solution solution, CancellationToken cancellationToken = default)
         {
             // TODO: Skip if this is already the latest solution.
             var project = solution.Projects.First();
-            var compilation = project.GetCompilationAsync().Result;
+            var compilation = await project.GetCompilationAsync(cancellationToken);
             var semanticModel = compilation.GetSemanticModel(compilation.SyntaxTrees.First());
 
-            var diagnostics = semanticModel.GetDiagnostics();
+            var diagnostics = semanticModel.GetDiagnostics(cancellationToken: cancellationToken);
             if (diagnostics.Any())
             {
                 // Reject invalid solutions.
@@ -42,6 +39,16 @@ namespace Waddle
                 SemanticModel = semanticModel,
                 Interpreter = new Interpreter(semanticModel, _stack, this)
             };
+        }
+
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            await BuildSolutionContextAsync(_workspace.CurrentSolution, cancellationToken);
+
+            _workspace.WorkspaceChanged += OnWorkspaceChanged;
+
+            var entryPoint = await FindEntryPointSyntaxNodeAsync(cancellationToken);
+            entryPoint.Accept(_latestState.Interpreter);
         }
 
         public void Call(IMethodSymbol symbol)
@@ -72,7 +79,40 @@ namespace Waddle
             syntax.Accept(state.Interpreter);
         }
 
-        public Interpreter LatestInterpreter() => _latestState.Interpreter;
+        private void OnWorkspaceChanged(object sender, WorkspaceChangeEventArgs e)
+        {
+            BuildSolutionContextAsync(e.NewSolution)
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        private async Task<CSharpSyntaxNode> FindEntryPointSyntaxNodeAsync(CancellationToken cancellationToken)
+        {
+            var compilation = (CSharpCompilation)await _workspace
+                .CurrentSolution
+                .Projects
+                .Where(p =>
+                {
+                    switch (p.CompilationOptions.OutputKind)
+                    {
+                        case OutputKind.ConsoleApplication:
+                        case OutputKind.WindowsApplication:
+                        case OutputKind.WindowsRuntimeApplication:
+                            return true;
+
+                        default:
+                            return false;
+                    }
+                })
+                .Single()
+                .GetCompilationAsync(cancellationToken);
+
+            return (CSharpSyntaxNode)compilation
+                .GetEntryPoint(cancellationToken)
+                .DeclaringSyntaxReferences
+                .First()
+                .GetSyntax();
+        }
 
         private class LatestState
         {
