@@ -8,22 +8,25 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace Waddle
 {
-    public class InterpreterContext
+    public class Context
     {
         private readonly Workspace _workspace;
         private LatestState _latestState;
 
         private readonly Stack _stack;
-        private readonly Dictionary<string, object> _locals; // TODO: actual stack frames
+        private readonly List<Dictionary<string, object>> _locals; // Dictionary per call frame
 
-        public InterpreterContext(Workspace workspace)
+        public Context(Workspace workspace)
         {
             _workspace = workspace;
             _stack = new Stack();
-            _locals = new Dictionary<string, object>();
+            _locals = new List<Dictionary<string, object>>
+            {
+                new Dictionary<string, object>()
+            };
         }
 
-        private async Task BuildSolutionContextAsync(Solution solution, CancellationToken cancellationToken = default)
+        private async Task RebuildContextAsync(Solution solution, CancellationToken cancellationToken = default)
         {
             // TODO: Skip if this is already the latest solution.
             var project = solution.Projects.First();
@@ -46,7 +49,7 @@ namespace Waddle
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            await BuildSolutionContextAsync(_workspace.CurrentSolution, cancellationToken);
+            await RebuildContextAsync(_workspace.CurrentSolution, cancellationToken);
 
             _workspace.WorkspaceChanged += OnWorkspaceChanged;
 
@@ -56,12 +59,12 @@ namespace Waddle
 
         public object GetLocal(string name)
         {
-            return _locals[name];
+            return _locals.Last()[name];
         }
 
         public void SetLocal(string name, object value)
         {
-            _locals[name] = value;
+            _locals.Last()[name] = value;
         }
 
         public void Call(IMethodSymbol symbol)
@@ -85,22 +88,27 @@ namespace Waddle
             if (newSymbol == null) throw new Exception();
 
             // Prepare the method's parameters.
+            _locals.Add(new Dictionary<string, object>());
             foreach (var parameter in newSymbol.Parameters.Reverse())
             {
-                _locals[parameter.Name] = _stack.Pop();
+                SetLocal(parameter.Name, _stack.Pop());
             }
 
+            // Call the method.
             var syntax = (CSharpSyntaxNode)newSymbol
                 .DeclaringSyntaxReferences
                 .First()
                 .GetSyntax();
 
             syntax.Accept(state.Interpreter);
+
+            // Pop the call frame
+            _locals.RemoveAt(_locals.Count - 1);
         }
 
         private void OnWorkspaceChanged(object sender, WorkspaceChangeEventArgs e)
         {
-            BuildSolutionContextAsync(e.NewSolution)
+            RebuildContextAsync(e.NewSolution)
                 .GetAwaiter()
                 .GetResult();
         }

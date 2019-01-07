@@ -11,9 +11,9 @@ namespace Waddle
     {
         private readonly SemanticModel _semanticModel;
         private readonly Stack _stack;
-        private readonly InterpreterContext _context;
+        private readonly Context _context;
 
-        public Interpreter(SemanticModel semanticModel, Stack stack, InterpreterContext context)
+        public Interpreter(SemanticModel semanticModel, Stack stack, Context context)
         {
             _semanticModel = semanticModel;
             _stack = stack;

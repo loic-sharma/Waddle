@@ -4,9 +4,9 @@ namespace Test
 {
     class Program
     {
-        static string Test(string d)
+        static string Test(string a)
         {
-            return d;
+            return a;
         }
 
         static void Main(string[] args)
