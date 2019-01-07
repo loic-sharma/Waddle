@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -25,7 +24,6 @@ namespace Waddle
         {
             base.Visit(node.Condition);
 
-            // TODO: Pop stack if expression statement does not consume last object
             if ((bool)_stack.Pop())
             {
                 base.Visit(node.Statement);
@@ -73,49 +71,29 @@ namespace Waddle
             // Use reflection to call methods from referenced assemblies.
             if (symbolInfo.Symbol.ContainingAssembly.Name == "mscorlib")
             {
-                var typeName = methodSymbol.ContainingNamespace.Name + "." + methodSymbol.ContainingType.Name;
-                var methodName = methodSymbol.Name;
-
-                var assembly = typeof(object).Assembly;
-                var type = assembly.GetType(typeName);
-
-                var methodArgumentTypeNames = methodSymbol
-                    .Parameters
-                    .Select(p => p.Type.ContainingNamespace.Name + "." + p.Type.Name)
-                    .ToList();
-
-                bool ParameterTypesMatch(ParameterInfo[] parameters)
+                var methodInfo = methodSymbol.GetMethodInfoOrNull();
+                if (methodInfo == null)
                 {
-                    if (parameters.Length != methodArgumentTypeNames.Count) return false;
-
-                    for (var i = 0; i < parameters.Length; i++)
-                    {
-                        if (parameters[i].ParameterType.FullName != methodArgumentTypeNames[i]) return false;
-                    }
-
-                    return true;
+                    throw new Exception();
                 }
 
-                foreach (var methodInfo in type.GetMethods())
+                var parameters = new List<object>(methodSymbol.Parameters.Length);
+                for (var i = 0; i < methodSymbol.Parameters.Length; i++)
                 {
-                    if (methodInfo.Name != methodSymbol.Name) continue;
-                    if (!ParameterTypesMatch(methodInfo.GetParameters())) continue;
-
-                    var parameters = new List<object>(methodSymbol.Parameters.Length);
-                    for (var i = 0; i < methodSymbol.Parameters.Length; i++)
-                    {
-                        parameters.Add(_stack.Pop());
-                    }
-
-                    parameters.Reverse();
-                    methodInfo.Invoke(null, parameters.ToArray());
-                    return;
+                    parameters.Add(_stack.Pop());
                 }
 
-                throw new Exception("Coudln't find method!");
+                object instance = null;
+                if (!methodInfo.IsStatic) throw new Exception("Not supported yet...");
+
+                parameters.Reverse();
+                methodInfo.Invoke(instance, parameters.ToArray());
             }
-
-            _context.Call(methodSymbol);
+            else
+            {
+                // Let the interpreter handle the method call.
+                _context.Call(methodSymbol);
+            }
         }
 
         public override void VisitBinaryExpression(BinaryExpressionSyntax node)

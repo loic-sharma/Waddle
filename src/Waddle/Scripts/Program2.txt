@@ -4,11 +4,6 @@ namespace Test
 {
     class Program
     {
-        static string Test(int a)
-        {
-            return "Bad";
-        }
-
         static string Test()
         {
             return "Foo bar";
