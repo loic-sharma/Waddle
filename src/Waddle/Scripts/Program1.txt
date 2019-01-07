@@ -4,16 +4,20 @@ namespace Test
 {
     class Program
     {
-        static string Test()
+        static string Test(string d)
         {
-            return "Hello World";
+            return d;
         }
 
         static void Main(string[] args)
         {
-            while (true)
+            var a = 1;
+            var b = 2;
+            var c = true;
+
+            while (c)
             {
-              Console.WriteLine("Value {0}", Test());
+                Console.WriteLine(Test("Hello world {0}"), a + b);
             }
         }
     }

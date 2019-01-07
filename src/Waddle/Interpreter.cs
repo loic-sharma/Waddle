@@ -61,9 +61,24 @@ namespace Waddle
             }
         }
 
+        public override void VisitVariableDeclaration(VariableDeclarationSyntax node)
+        {
+            foreach (var variable in node.Variables)
+            {
+                base.Visit(variable);
+            }
+        }
+
+        public override void VisitVariableDeclarator(VariableDeclaratorSyntax node)
+        {
+            base.Visit(node.Initializer.Value);
+
+            _context.SetLocal(node.Identifier.ValueText, _stack.Pop());
+        }
+
         public override void VisitInvocationExpression(InvocationExpressionSyntax node)
         {
-            base.VisitInvocationExpression(node);
+            base.Visit(node.ArgumentList);
 
             var symbolInfo = _semanticModel.GetSymbolInfo(node);
             var methodSymbol = (IMethodSymbol)symbolInfo.Symbol;
@@ -121,6 +136,13 @@ namespace Waddle
         public override void VisitLiteralExpression(LiteralExpressionSyntax node)
         {
             _stack.Push(node.Token.Value);
+        }
+
+        public override void VisitIdentifierName(IdentifierNameSyntax node)
+        {
+            // The interpreter syntax walker visits an IndentifierNameSyntax node
+            // only if the node represents a local that should be pushed onto the stack.
+            _stack.Push(_context.GetLocal(node.Identifier.ValueText));
         }
     }
 }

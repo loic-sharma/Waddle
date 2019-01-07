@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,14 +11,16 @@ namespace Waddle
     public class InterpreterContext
     {
         private readonly Workspace _workspace;
-        private readonly Stack _stack;
-
         private LatestState _latestState;
+
+        private readonly Stack _stack;
+        private readonly Dictionary<string, object> _locals; // TODO: actual stack frames
 
         public InterpreterContext(Workspace workspace)
         {
             _workspace = workspace;
             _stack = new Stack();
+            _locals = new Dictionary<string, object>();
         }
 
         private async Task BuildSolutionContextAsync(Solution solution, CancellationToken cancellationToken = default)
@@ -51,12 +54,22 @@ namespace Waddle
             entryPoint.Accept(_latestState.Interpreter);
         }
 
+        public object GetLocal(string name)
+        {
+            return _locals[name];
+        }
+
+        public void SetLocal(string name, object value)
+        {
+            _locals[name] = value;
+        }
+
         public void Call(IMethodSymbol symbol)
         {
             // TODO: Use the inputted symbol if the state hasn't been reloaded.
             var state = _latestState;
             var candidates = state.SemanticModel.Compilation.GetSymbolsWithName(symbol.Name, SymbolFilter.Member);
-            ISymbol newSymbol = null;
+            IMethodSymbol newSymbol = null;
 
             foreach (var candidate in candidates.Cast<IMethodSymbol>())
             {
@@ -70,6 +83,12 @@ namespace Waddle
             }
 
             if (newSymbol == null) throw new Exception();
+
+            // Prepare the method's parameters.
+            foreach (var parameter in newSymbol.Parameters.Reverse())
+            {
+                _locals[parameter.Name] = _stack.Pop();
+            }
 
             var syntax = (CSharpSyntaxNode)newSymbol
                 .DeclaringSyntaxReferences

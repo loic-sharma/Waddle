@@ -38,7 +38,7 @@ namespace Waddle
             var context = new InterpreterContext(workspace);
 
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-            ModifyWorkspace(workspace, document);
+            //ModifyWorkspace(workspace, document);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
             await context.StartAsync(cancellationToken);
