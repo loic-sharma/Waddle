@@ -1,24 +1,18 @@
 using System;
+using System.Threading.Tasks;
 
 namespace Test
 {
     class Program
     {
-        static string Test(string a)
+        static async Task Test(int a)
         {
-            return a;
+            await Task.Delay(TimeSpan.FromSeconds(1));
         }
 
         static void Main(string[] args)
         {
-            var a = 1;
-            var b = 2;
-            var c = true;
-
-            while (c)
-            {
-                Console.WriteLine(Test("Hello world {0}"), a + b);
-            }
+            Test(10);
         }
     }
 }

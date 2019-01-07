@@ -41,7 +41,7 @@ namespace Waddle
             //ModifyWorkspace(workspace, document);
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
-            await context.StartAsync(cancellationToken);
+            await context.RunAsync(cancellationToken);
         }
 
         private static async Task ModifyWorkspace(Workspace workspace, Document document)

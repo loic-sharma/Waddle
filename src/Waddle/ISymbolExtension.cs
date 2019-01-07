@@ -4,15 +4,28 @@ using Microsoft.CodeAnalysis;
 
 namespace Waddle
 {
-    public static class IMethodSymbolExtension
+    public static class ISymbolExtension
     {
+        public static string FullName(this INamespaceSymbol symbol)
+        {
+            if (string.IsNullOrEmpty(symbol.Name)) return string.Empty;
+
+            var parent = symbol.ContainingNamespace.FullName();
+            if (!string.IsNullOrEmpty(parent))
+            {
+                return $"{parent}.{symbol.Name}";
+            }
+
+            return symbol.Name;
+        }
+
         public static MethodInfo GetMethodInfoOrNull(this IMethodSymbol symbol)
         {
-            var typeName = symbol.ContainingNamespace.Name + "." + symbol.ContainingType.Name;
+            var typeName = symbol.ContainingNamespace.FullName() + "." + symbol.ContainingType.Name;
             var methodName = symbol.Name;
             var methodArgumentTypeNames = symbol
                 .Parameters
-                .Select(p => p.Type.ContainingNamespace.Name + "." + p.Type.Name)
+                .Select(p => p.Type.ContainingNamespace.FullName() + "." + p.Type.Name)
                 .ToList();
 
             var assembly = typeof(object).Assembly;

@@ -47,7 +47,7 @@ namespace Waddle
             };
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        public async Task RunAsync(CancellationToken cancellationToken)
         {
             await RebuildContextAsync(_workspace.CurrentSolution, cancellationToken);
             if (_latestState == null)

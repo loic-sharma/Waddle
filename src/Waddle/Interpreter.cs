@@ -20,6 +20,11 @@ namespace Waddle
             _context = context;
         }
 
+        public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
+        {
+            base.Visit(node.Body);
+        }
+
         public override void VisitIfStatement(IfStatementSyntax node)
         {
             base.Visit(node.Condition);
@@ -92,17 +97,24 @@ namespace Waddle
                     throw new Exception();
                 }
 
+                // Prepare the parameters.
                 var parameters = new List<object>(methodSymbol.Parameters.Length);
                 for (var i = 0; i < methodSymbol.Parameters.Length; i++)
                 {
                     parameters.Add(_stack.Pop());
                 }
 
+                parameters.Reverse();
+
+                // Call the method
                 object instance = null;
                 if (!methodInfo.IsStatic) throw new Exception("Not supported yet...");
+                var result = methodInfo.Invoke(instance, parameters.ToArray());
 
-                parameters.Reverse();
-                methodInfo.Invoke(instance, parameters.ToArray());
+                if (!methodSymbol.ReturnsVoid)
+                {
+                    _stack.Push(result);
+                }
             }
             else
             {
